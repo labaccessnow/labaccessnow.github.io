@@ -1,0 +1,206 @@
+---
+// Auto-listing portal: at build time, pull the org's PUBLIC repos tagged
+// `labaccessnow-showcase` and render a card per project. Runs on every push +
+// a daily cron, so newly tagged repos appear automatically.
+const ORG = "labaccessnow";
+const TOPIC = "labaccessnow-showcase";
+const DOCS_BASE = "https://github.labaccessnow.com";
+
+const token = import.meta.env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN;
+const headers = {
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+};
+
+let projects = [];
+let fetchError = null;
+try {
+  // `labaccessnow` is a User account, so /users/<login>/repos (the universal
+  // endpoint — works for users AND orgs); /orgs/... 404s for a user.
+  const res = await fetch(
+    `https://api.github.com/users/${ORG}/repos?per_page=100&sort=updated`,
+    { headers },
+  );
+  if (!res.ok) throw new Error(`GitHub API responded ${res.status}`);
+  const repos = await res.json();
+  projects = repos
+    .filter((r) => !r.archived && !r.private && (r.topics ?? []).includes(TOPIC))
+    .map((r) => ({
+      name: r.name,
+      description: r.description ?? "",
+      repo: r.html_url,
+      docs: `${DOCS_BASE}/${r.name}/`,
+      language: r.language,
+      topics: (r.topics ?? []).filter((t) => t !== TOPIC).slice(0, 5),
+      updated: r.updated_at,
+      stars: r.stargazers_count ?? 0,
+    }))
+    .sort((a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime());
+} catch (e) {
+  fetchError = e instanceof Error ? e.message : String(e);
+}
+
+const fmtDate = (d) =>
+  new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+const builtAt = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>James Son — Projects &amp; Open Source</title>
+    <meta
+      name="description"
+      content="Open-source projects and live documentation from James Son / labaccessnow — network automation, infrastructure as code, and homelab engineering."
+    />
+    <meta name="theme-color" content="#0d1117" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%232f81f7'/%3E%3Ctext x='8' y='12' font-size='9' text-anchor='middle' fill='white' font-family='monospace'%3E&lt;/&gt;%3C/text%3E%3C/svg%3E" />
+    <style is:global>
+      :root {
+        --bg: #0d1117; --panel: #161b22; --line: #26303b; --ink: #e6edf3;
+        --muted: #8b97a6; --accent: #2f81f7; --green: #3fb950;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--ink); line-height: 1.6;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 0 22px; }
+      h1, h2 { margin: 0; letter-spacing: -0.02em; line-height: 1.1; }
+      header.nav {
+        border-bottom: 1px solid var(--line); position: sticky; top: 0;
+        background: rgba(13, 17, 23, 0.85); backdrop-filter: blur(8px); z-index: 10;
+      }
+      .nav .row { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+      .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; }
+      .brand .mk {
+        width: 32px; height: 32px; border-radius: 8px;
+        background: linear-gradient(135deg, #2f81f7, #1f6feb);
+        display: flex; align-items: center; justify-content: center; color: #fff; font-size: 15px;
+      }
+      .nav a.gh {
+        font-size: 14.5px; color: var(--muted); border: 1px solid var(--line);
+        padding: 8px 14px; border-radius: 8px;
+      }
+      .nav a.gh:hover { color: var(--ink); border-color: var(--accent); }
+      .hero { padding: 64px 0 26px; }
+      .eyebrow {
+        font-size: 12.5px; letter-spacing: 0.15em; text-transform: uppercase;
+        color: var(--accent); font-weight: 700;
+      }
+      .hero h1 { font-size: clamp(32px, 5vw, 50px); margin: 12px 0 0; }
+      .hero p { color: var(--muted); font-size: 18px; max-width: 620px; margin: 16px 0 0; }
+      .hero .meta {
+        display: inline-flex; align-items: center; gap: 8px; margin-top: 18px;
+        font-size: 13.5px; color: var(--muted);
+      }
+      .dot {
+        width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+        box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.18);
+      }
+      section { padding: 22px 0 70px; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-top: 10px; }
+      @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+      .card {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        padding: 22px; display: flex; flex-direction: column; transition: 0.15s;
+      }
+      .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+      .card h2 { font-size: 19px; }
+      .card h2 a:hover { color: var(--accent); }
+      .card .sub {
+        display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+        font-size: 12.5px; color: var(--muted); margin-top: 6px;
+      }
+      .lang-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; background: var(--accent); }
+      .card p { color: var(--muted); font-size: 14.5px; margin: 12px 0 16px; flex: 1; }
+      .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+      .tag {
+        font-size: 11.5px; color: #9fb4cc; background: #1c2530;
+        border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px;
+      }
+      .links { display: flex; gap: 10px; }
+      .btn { font-size: 13.5px; font-weight: 600; padding: 9px 15px; border-radius: 8px; border: 1px solid var(--line); }
+      .btn.p { background: var(--accent); color: #fff; border-color: var(--accent); }
+      .btn.p:hover { background: #1f6feb; }
+      .btn.s:hover { border-color: var(--accent); }
+      .empty {
+        border: 1px dashed var(--line); border-radius: 14px; padding: 40px 24px;
+        text-align: center; color: var(--muted); background: var(--panel);
+      }
+      .empty code { color: var(--ink); background: #1c2530; padding: 2px 7px; border-radius: 5px; }
+      footer { border-top: 1px solid var(--line); padding: 24px 0; color: var(--muted); font-size: 13.5px; }
+      footer .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap row">
+        <a class="brand" href="/"><span class="mk">&lt;/&gt;</span> James Son · Projects</a>
+        <a class="gh" href={`https://github.com/${ORG}`}>View all on GitHub →</a>
+      </div>
+    </header>
+
+    <div class="hero">
+      <div class="wrap">
+        <span class="eyebrow">Open source &amp; live documentation</span>
+        <h1>Projects &amp; engineering write-ups.</h1>
+        <p>
+          Network automation, infrastructure-as-code, and homelab engineering — each with live
+          docs. Synced to GitHub Pages and self-hosted on my own edge.
+        </p>
+        <div class="meta">
+          <span class="dot"></span> Auto-published from GitHub · {projects.length} project{projects.length === 1 ? "" : "s"} · updated {builtAt}
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        {projects.length > 0 && (
+          <div class="grid">
+            {projects.map((p) => (
+              <article class="card">
+                <h2><a href={p.docs}>{p.name}</a></h2>
+                <div class="sub">
+                  {p.language && <span><span class="lang-dot"></span>{p.language}</span>}
+                  {p.stars > 0 && <span>★ {p.stars}</span>}
+                  <span>updated {fmtDate(p.updated)}</span>
+                </div>
+                <p>{p.description || "No description provided."}</p>
+                {p.topics.length > 0 && (
+                  <div class="tags">{p.topics.map((t) => <span class="tag">{t}</span>)}</div>
+                )}
+                <div class="links">
+                  <a class="btn p" href={p.docs}>Read the docs →</a>
+                  <a class="btn s" href={p.repo}>GitHub</a>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {projects.length === 0 && (
+          <div class="empty">
+            {fetchError
+              ? <p>Couldn't reach the GitHub API at build time ({fetchError}). The list will refill on the next build.</p>
+              : <p>No showcase projects yet. Tag a public repo with the topic <code>labaccessnow-showcase</code> and it appears here automatically.</p>}
+            <p style="margin-top:14px"><a class="btn s" href={`https://github.com/${ORG}`}>Browse GitHub →</a></p>
+          </div>
+        )}
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap row">
+        <div><b>James Son</b> · Network &amp; Security Engineering</div>
+        <div>github.com/{ORG}</div>
+      </div>
+    </footer>
+  </body>
+</html>

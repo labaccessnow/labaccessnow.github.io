@@ -1,0 +1,53 @@
+name: Deploy portal
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * *"   # daily — pick up newly tagged repos with no push
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Build (auto-lists org repos tagged labaccessnow-showcase)
+        run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy to VPS (github.labaccessnow.com root)
+        # NOTE: no --delete — the portal owns the root files; project docs live in
+        # /<repo>/ subdirs deployed by their own workflows and must be preserved.
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_DEPLOY_SSH_KEY }}" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -az -e "ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes" dist/ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:./"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
