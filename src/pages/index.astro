@@ -41,6 +41,26 @@ try {
   fetchError = e instanceof Error ? e.message : String(e);
 }
 
+// Curated cards for projects hosted outside the `labaccessnow` GitHub account
+// (e.g. the glucoscout product firmware). Merged into the auto-listed set so the
+// showcase isn't limited to repos under this one account.
+const curated = [
+  {
+    name: "esp32-cgm",
+    description:
+      "Open-source firmware for smart-home CGM (continuous-glucose) panels on ESP32-S3 (3.5\") and ESP32-P4 (10.1\") touch displays: Nightscout / Dexcom / Libre sources, weather, Home Assistant + MQTT, and over-the-air updates. Powers the panels at glucoscout.com.",
+    repo: "https://github.com/glucoscout/esp32-cgm",
+    docs: "https://glucoscout.com",
+    language: "C/C++",
+    topics: ["esp32", "nightscout", "home-assistant", "ota", "diabetes"],
+    updated: "2026-06-27T00:00:00Z",
+    stars: 0,
+  },
+];
+projects = [...curated, ...projects].sort(
+  (a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime(),
+);
+
 const fmtDate = (d) =>
   new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 const builtAt = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
